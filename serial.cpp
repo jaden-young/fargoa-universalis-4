@@ -3,51 +3,73 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <limits>
 
-#define inf 9999999
 
 using namespace std;
 
-typedef vector<vector<int> > AdjacencyMatrix;
+const int inf = numeric_limits<int>::max();
 
-AdjacencyMatrix read_graph(char filename[]);
-AdjacencyMatrix pred_matrix(AdjacencyMatrix G);
-AdjacencyMatrix floyd_warshal(AdjacencyMatrix G);
-void path(AdjacencyMatrix preds, int i, int j);
-void print_adj_matrix(AdjacencyMatrix G);
+typedef vector<vector<int> > Graph;
+
+Graph read_graph(char filename[]);
+Graph initialize_pred_matrix(const Graph &G);
+void floyd_warshall(Graph &G, Graph &preds);
+void shortest_path(const Graph &preds, const int i, const int j, vector<int> &path);
+void print_adj_matrix(const Graph &G);
 
 int main(int argc, char* argv[])
 {
-     AdjacencyMatrix G = read_graph(argv[1]);
-     AdjacencyMatrix preds = floyd_warshal(G);
+     Graph G = read_graph(argv[1]);
+     Graph preds = initialize_pred_matrix(G);
+     floyd_warshall(G, preds);
+
+     // print shortest paths.
      for (int i = 0; i < G.size(); i++)
      {
           for (int j = i; j < G.size(); j++)
           {
-               cout<< "(" << i << ", " << j << "):";
-               path(preds, i, j);
-               cout<<endl;
+               vector<int> path = vector<int>();
+               shortest_path(preds, i, j, path);
+               if (!path.empty())
+               {
+                    cout<< "(" << i << ", " << j << "):";
+                    for (auto const& x: path)
+                    {
+                         cout << ' ' << x;
+                    }
+                    cout << endl;
+               }
           }
      }
-
 }
 
-void print_adj_matrix(AdjacencyMatrix G)
+/*
+  Prints an adjacency matrix to stdout.
+ */
+void print_adj_matrix(const Graph &G)
 {
      for (auto const& row: G)
      {
           for (auto const& item: row)
           {
-               cout << item << " ";
+               cout << item << ' ';
           }
           cout << endl;
      }
 }
 
+/*
+  Finds APSP with path reconstruction using the Floyd Warshall algorithm.
 
-AdjacencyMatrix floyd_warshal(AdjacencyMatrix G)
+  After completion, G[i][j] will be the distance of the shortest i -> j path.
+  preds should be a graph of the same size as G, initialized with G[i][j] = i if
+  there is an edge between i and j in G, otherwise -1 as a sentinel. After
+  completion, preds[i][j] will be the node that comes before i on the shortest
+  path from i to j.
+*/
+void floyd_warshall(Graph &G, Graph &preds)
 {
-     AdjacencyMatrix preds = pred_matrix(G);
      int n = G.size();
      for (int k = 0; k < n; k++)
      {
@@ -58,7 +80,7 @@ AdjacencyMatrix floyd_warshal(AdjacencyMatrix G)
                     if (G[i][k] != inf && G[k][j] != inf)
                     {
                          int temp = G[i][k] + G[k][j];
-                         if (G[i][j] > temp)
+                         if (temp < G[i][j])
                          {
                               G[i][j] = temp;
                               preds[i][j] = preds[k][j];
@@ -67,21 +89,24 @@ AdjacencyMatrix floyd_warshal(AdjacencyMatrix G)
                }
           }
      }
-     return preds;
 }
 
-AdjacencyMatrix pred_matrix(AdjacencyMatrix G)
+/*
+  Initializes a predecessor matrix of a Graph.
+
+  G[i][j] is set to i if there is an edge G[i][j], otherwise -1 as a sentinel
+  value.
+ */
+Graph initialize_pred_matrix(const Graph &G)
 {
      int size = G.size();
-     AdjacencyMatrix preds = AdjacencyMatrix(size, vector<int>(size));
+     Graph preds = Graph(size, vector<int>(size, -1));
      for (int i = 0; i < size; i++)
      {
           for (int j = 0; j < size; j++)
           {
-               if (G[i][j] == inf)
+               if (G[i][j] != inf)
                {
-                    preds[i][j] = -1;
-               } else {
                     preds[i][j] = i;
                }
           }
@@ -89,25 +114,40 @@ AdjacencyMatrix pred_matrix(AdjacencyMatrix G)
      return preds;
 }
 
-void path(AdjacencyMatrix preds, int i, int j)
+
+/*
+  Finds the shortest path from 'i' to 'j' in 'preds' and saves it in 'path'.
+ */
+void shortest_path(const Graph &preds, const int i, const int j, vector<int> &path)
 {
      if (i == j)
      {
-          cout << " " << i;
+          path.push_back(i);
      }
      else if (preds[i][j] == -1)
      {
-          cout << "No path";
+          path.clear();
+          return;
      }
      else
      {
-          path(preds, i, preds[i][j]);
-          cout << " " << j;
+          shortest_path(preds, i, preds[i][j], path);
+          path.push_back(j);
      }
-
 }
 
-AdjacencyMatrix read_graph(char filename[])
+/*
+  Read in a file and return an adjacency matrix.
+
+  Contents of the file should be of the form:
+
+  0 0
+  0 1
+  2 3
+
+  Graph is assumed to be undirected and unweighted.
+ */
+Graph read_graph(char filename[])
 {
      fstream f(filename, std::ios_base::in);
      int u,v;
@@ -127,7 +167,7 @@ AdjacencyMatrix read_graph(char filename[])
      }
      f.close();
      int num_nodes = max_node + 1;
-     AdjacencyMatrix graph = AdjacencyMatrix(num_nodes, vector<int>(num_nodes));
+     Graph graph = Graph(num_nodes, vector<int>(num_nodes, inf));
      for (int i = 0; i < all_edges.size(); i++)
      {
           u = all_edges[i].first;
